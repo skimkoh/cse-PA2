@@ -32,7 +32,7 @@ public class ClientCP1 {
         FileInputStream fileInputStream = null;
         BufferedInputStream bufferedFileInputStream = null;
 
-        long timeStarted = System.nanoTime();
+        long timeStarted = 0;
 
         try {
 

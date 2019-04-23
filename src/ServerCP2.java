@@ -1,4 +1,6 @@
 import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -7,12 +9,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
-import java.security.SecureRandom;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.Arrays;
 
-public class ServerCP1 {
+public class ServerCP2 {
 
     private static byte[] nonce = new byte[64];
     private static byte[] encryptedNonce = new byte[256];
@@ -20,22 +22,19 @@ public class ServerCP1 {
     private static final String signedCertificate = "example.org.crt";
     private static X509Certificate ServerCert;
 
-
-
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
 
         ServerSocket welcomeSocket = null;
         Socket connectionSocket = null;
         DataOutputStream toClient = null;
         DataInputStream fromClient = null;
-
         FileOutputStream fileOutputStream = null;
         BufferedOutputStream bufferedFileOutputStream = null;
-
 
         try {
             welcomeSocket = new ServerSocket(4321);
 
+            // Prints IP
             System.out.println("Server IP: " + welcomeSocket.getInetAddress().getLocalHost().getHostAddress());
             System.out.println("...Server connected, waiting for client...");
             connectionSocket = welcomeSocket.accept();
@@ -44,7 +43,6 @@ public class ServerCP1 {
             fromClient = new DataInputStream(connectionSocket.getInputStream());
             toClient = new DataOutputStream(connectionSocket.getOutputStream());
 
-
             BufferedReader stringIn = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
             PrintWriter stringOut = new PrintWriter(connectionSocket.getOutputStream(), true);
 
@@ -52,11 +50,10 @@ public class ServerCP1 {
             System.out.println("Hello, this is SecStore.");
 
 
-            // get nonce from client
+            // Get nonce from client
             System.out.println("Receiving nonce from client");
             fromClient.read(nonce);
             System.out.println("Nonce received");
-
             //get private key
             Path privateKeyPath = Paths.get(privateKeyDer);
             byte[] privateKeyByte = Files.readAllBytes(privateKeyPath);
@@ -65,15 +62,16 @@ public class ServerCP1 {
             KeyFactory keyFactory = KeyFactory.getInstance("RSA");
             PrivateKey privateKey = keyFactory.generatePrivate(keySpec);
 
-            // encrypt nonce
+            // Encrypt nonce
             Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
             cipher.init(Cipher.ENCRYPT_MODE,privateKey);
             encryptedNonce = cipher.doFinal(nonce);
 
-            // send nonce back
+            // Send nonce to client
             System.out.println("Sending encrypted nonce to client");
             toClient.write(encryptedNonce);
             toClient.flush();
+
 
             // send cert
             System.out.println(stringIn.readLine());
@@ -84,72 +82,69 @@ public class ServerCP1 {
             toClient.flush();
             System.out.println("Sending signed certificate to client");
 
+
+            // Waiting for client to finish verification
             System.out.println("Client: " + stringIn.readLine());
 
-            // Starts file transfer
             System.out.println("...Client authenticated. File transfer starting now...");
 
+            String filename = "";
+            Cipher sessionCipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
 
-            // Get file size from client
-            int fileSize = fromClient.readInt();
-            System.out.println(fileSize);
-            int size = 0;
+            while (!connectionSocket.isClosed()) {
 
-            int count = 0;
+                int command = fromClient.readInt();
+                BufferedInputStream inputStream = new BufferedInputStream(connectionSocket.getInputStream());
 
-            while (size < fileSize) {
+                if (command == 0) {
+                    // get encrypted session key and decrypt using private key
+                    int encryptedSessionKeySize = fromClient.readInt();
+                    byte[] encryptedSessionKey = new byte[encryptedSessionKeySize];
+                    fromClient.readFully(encryptedSessionKey);
 
-                int packetType = fromClient.readInt();
+                    System.out.println("Received encrypted session key of size.");
+                    System.out.println("Decrypting session key");
+                    Cipher f = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+                    f.init(Cipher.DECRYPT_MODE, privateKey);
+                    byte[] sessionKeyBytes = f.doFinal(encryptedSessionKey);
+                    SecretKey sessionKey = new SecretKeySpec(sessionKeyBytes, 0, sessionKeyBytes.length, "AES");
+                    sessionCipher.init(Cipher.DECRYPT_MODE, sessionKey);
+                }
+                else if (command == 1) {
+                    int nameLength = fromClient.readInt();
+                    byte[] nameBytes = new byte[nameLength];
+                    fromClient.readFully(nameBytes);
+                    filename = new String(nameBytes);
 
-                // If the packet is for transferring the filename
-                if (packetType == 0) {
+                } else if (command == 2) {
+                    // get file
+                    int encryptedFileSize = fromClient.readInt();
+                    System.out.println("Receiving file.");
 
-                    System.out.println("Receiving file...");
+                    byte[] encryptedFileBytes = new byte[encryptedFileSize];
+                    fromClient.readFully(encryptedFileBytes, 0, encryptedFileSize);
+                    System.out.println(Arrays.toString(encryptedFileBytes));
+                    System.out.println(encryptedFileBytes.length);
 
-                    int numBytes = fromClient.readInt();
-                    byte [] filename = new byte[numBytes];
-                    fromClient.read(filename);
+                    System.out.println("Decrypting file with session key");
 
-                    fileOutputStream = new FileOutputStream("recv_" + new String(filename, 0, numBytes));
-                    bufferedFileOutputStream = new BufferedOutputStream(fileOutputStream);
+                    // decryption of file
 
-                    // If the packet is for transferring a chunk of the file
-                } else if (packetType == 1) {
-                    count++;
-                    int numBytes = fromClient.readInt();
-                    int decryptedNumBytes = fromClient.readInt();
-                    size+=decryptedNumBytes;
+                    byte[] result = sessionCipher.doFinal(encryptedFileBytes);
+                    FileOutputStream file = new FileOutputStream("recv_" + filename);
+                    file.write(result);
+                    file.close();
 
-                    byte[] block = new byte[numBytes];
-                    fromClient.read(block);
+                    // done
+                    stringOut.println("...Server: File transfer done.");
+                    System.out.println("Closing connections");
 
-                    // Decrypt each 128 bytes
-                    Cipher cipher1 = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-                    cipher1.init(Cipher.DECRYPT_MODE,privateKey);
-//                    byte[] decryptedBlock = serverProtocol.decryptFile(block);
-                    byte[] decryptedBlock = cipher1.doFinal(block);
-
-                    if (numBytes > 0){
-                        bufferedFileOutputStream.write(decryptedBlock, 0, decryptedNumBytes);
-                        bufferedFileOutputStream.flush();
-                    }
+                    fromClient.close();
+                    toClient.close();
+                    connectionSocket.close();
                 }
             }
-
-            // done
-            stringOut.println("...Server: File transfer done.");
-            System.out.println("Closing connections");
-            bufferedFileOutputStream.close();
-            fileOutputStream.close();
-
-            fromClient.close();
-            toClient.close();
-            connectionSocket.close();
-
-        }catch (Exception e){
-            e.printStackTrace();
-        }
+        } catch (Exception e) {e.printStackTrace();}
 
     }
-
 }
