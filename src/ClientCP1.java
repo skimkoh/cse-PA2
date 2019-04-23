@@ -112,11 +112,11 @@ public class ClientCP1 {
 
             System.out.println("Server authentication successful. File transfer starts.");
 
+            timeStarted = System.nanoTime();
+
             // Open the file
             fileInputStream = new FileInputStream(filename);
             bufferedFileInputStream = new BufferedInputStream(fileInputStream);
-
-            timeStarted = System.nanoTime();
 
             // file size
             int fileSize = fileInputStream.available();

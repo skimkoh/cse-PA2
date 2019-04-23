@@ -95,6 +95,8 @@ public class ClientCP2 {
 
             System.out.println("Server authentication successful. File transfer starts.");
 
+            timeStarted = System.nanoTime();
+
             // init the cipher
             SecretKey sessionKey = KeyGenerator.getInstance("AES").generateKey();
             Cipher sessionCipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
@@ -107,7 +109,6 @@ public class ClientCP2 {
 
             BufferedOutputStream outputStream = new BufferedOutputStream(toServer);
 
-            timeStarted = System.nanoTime();
             toServer.writeInt(0);
             toServer.writeInt(encryptedSessionKey.length);
             toServer.flush();
