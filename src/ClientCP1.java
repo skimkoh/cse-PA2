@@ -24,9 +24,6 @@ public class ClientCP1 {
     	String serverAddress = "localhost";
     	if (args.length > 1) serverAddress = args[1];
 
-        int port = 4321;
-    	if (args.length > 2) port = Integer.parseInt(args[2]);
-
         int numBytes = 0;
 
         Socket clientSocket = null;
@@ -41,10 +38,9 @@ public class ClientCP1 {
 
         try {
 
-            System.out.println("Establishing connection to server...");
+            System.out.println("...Connecting to server...");
 
-            // Connect to server and get the input and output streams
-            clientSocket = new Socket(serverAddress, port);
+            clientSocket = new Socket(serverAddress, 4321);
 
             // data channels
             toServer = new DataOutputStream(clientSocket.getOutputStream());
@@ -54,7 +50,7 @@ public class ClientCP1 {
             BufferedReader stringIn = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
             PrintWriter stringOut = new PrintWriter(clientSocket.getOutputStream(), true);
 
-            stringOut.println("...Client: Hello SecStore, please prove your identity");
+            stringOut.println("Client: Hello SecStore, please prove your identity");
             System.out.println("Requesting for server identity");
 
             // generate nonce
@@ -114,7 +110,7 @@ public class ClientCP1 {
             }
 
 
-            System.out.println("Server authentication successful.");
+            System.out.println("Server authentication successful. File transfer starts.");
 
             // Open the file
             fileInputStream = new FileInputStream(filename);
@@ -127,7 +123,7 @@ public class ClientCP1 {
             toServer.writeInt(fileSize);
             toServer.flush();
 
-            System.out.println("Sending file name...");
+            System.out.println("Sending file name");
             // Send the filename
             toServer.writeInt(0);
             toServer.writeInt(filename.getBytes().length);
@@ -140,7 +136,7 @@ public class ClientCP1 {
             int count = 0;
 
             // Send the encrypted file
-            System.out.println("Sending file...");
+            System.out.println("Sending file");
             for (boolean fileEnded = false; !fileEnded;) {
 
                 numBytes = bufferedFileInputStream.read(fromFileBuffer);
@@ -161,8 +157,7 @@ public class ClientCP1 {
             }
 
             System.out.println(stringIn.readLine());
-
-            System.out.println("Closing connections");
+            System.out.println("Closing connections...");
             bufferedFileInputStream.close();
             fileInputStream.close();
 

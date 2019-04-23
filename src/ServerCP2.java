@@ -86,7 +86,7 @@ public class ServerCP2 {
             // Waiting for client to finish verification
             System.out.println("Client: " + stringIn.readLine());
 
-            System.out.println("...Client authenticated. File transfer starting now...");
+            System.out.println("Client authentication successful. File transfer starts.");
 
             String filename = "";
             Cipher sessionCipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
@@ -123,13 +123,12 @@ public class ServerCP2 {
 
                     byte[] encryptedFileBytes = new byte[encryptedFileSize];
                     fromClient.readFully(encryptedFileBytes, 0, encryptedFileSize);
-                    System.out.println(Arrays.toString(encryptedFileBytes));
-                    System.out.println(encryptedFileBytes.length);
+//                    System.out.println(Arrays.toString(encryptedFileBytes));
+//                    System.out.println(encryptedFileBytes.length);
 
                     System.out.println("Decrypting file with session key");
 
                     // decryption of file
-
                     byte[] result = sessionCipher.doFinal(encryptedFileBytes);
                     FileOutputStream file = new FileOutputStream("recv_" + filename);
                     file.write(result);
@@ -137,7 +136,7 @@ public class ServerCP2 {
 
                     // done
                     stringOut.println("...Server: File transfer done.");
-                    System.out.println("Closing connections");
+                    System.out.println("Closing connections...");
 
                     fromClient.close();
                     toClient.close();

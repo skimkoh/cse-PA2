@@ -17,8 +17,11 @@ public class ClientCP2 {
 
     public static void main(String[] args) {
 
-        String filename = args[0];//String filename = "audio.mp3";
-        String serverIP = args[1];
+        String filename = "rr.txt";
+        if (args.length > 0) filename = args[0];
+
+        String serverAddress = "localhost";
+        if (args.length > 1) serverAddress = args[1];
 
         Socket clientSocket = null;
 
@@ -31,7 +34,7 @@ public class ClientCP2 {
         try {
 
             System.out.println("...Connecting to server...");
-            clientSocket = new Socket(serverIP, 4321);
+            clientSocket = new Socket(serverAddress, 4321);
 
             toServer = new DataOutputStream(clientSocket.getOutputStream());
             fromServer = new DataInputStream(clientSocket.getInputStream());
@@ -40,9 +43,7 @@ public class ClientCP2 {
             BufferedReader stringIn = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
             PrintWriter stringOut = new PrintWriter(clientSocket.getOutputStream(), true);
 
-            // Set up protocol
-
-            stringOut.println("...Client: Hello SecStore, please prove your identity");
+            stringOut.println("Client: Hello SecStore, please prove your identity");
             System.out.println("Requesting for server identity");
 
             // generate nonce
@@ -69,6 +70,7 @@ public class ClientCP2 {
             System.out.println("Certificate received");
             ServerCert.checkValidity();
             System.out.println("Certificate validated");
+
             // Get public key
             PublicKey serverPublicKey = ServerCert.getPublicKey();
 
@@ -91,8 +93,7 @@ public class ClientCP2 {
                 clientSocket.close();
             }
 
-
-            System.out.println("...Server authenticated. File transfer starting now...");
+            System.out.println("Server authentication successful. File transfer starts.");
 
             // init the cipher
             SecretKey sessionKey = KeyGenerator.getInstance("AES").generateKey();
@@ -107,8 +108,6 @@ public class ClientCP2 {
             BufferedOutputStream outputStream = new BufferedOutputStream(toServer);
 
             timeStarted = System.nanoTime();
-
-            // notify server that the session key is coming
             toServer.writeInt(0);
             toServer.writeInt(encryptedSessionKey.length);
             toServer.flush();
@@ -118,11 +117,9 @@ public class ClientCP2 {
 
             System.out.println("Sent encrypted session key");
 
-            // Open the file
+            // open file
             File file = new File(filename);
             fileInputStream = new FileInputStream(file);
-
-            // set up buffer and read the file into it
             byte[] fileByteArray = new byte[(int)file.length()];
             fileInputStream.read(fileByteArray, 0, fileByteArray.length);
             fileInputStream.close();
@@ -136,21 +133,19 @@ public class ClientCP2 {
             outputStream.flush();
 
             // encrypt the file with the session key
-            //byte[] encryptedFile = clientProtocol.encryptFile(sessionCipher, fileByteArray);
             byte[] encryptedFile = sessionCipher.doFinal(fileByteArray);
 
-            // tell the server the encrypted file is coming and send it
+            // send file
             toServer.writeInt(2);
             System.out.println("Writing length: " + encryptedFile.length);
             toServer.writeInt(encryptedFile.length);
             toServer.flush();
 
-            //outputStream = new BufferedOutputStream(toServer);
             toServer.write(encryptedFile, 0, encryptedFile.length);
             toServer.flush();
 
             //done
-            System.out.println("Closing connections");
+            System.out.println("Closing connections...");
             fileInputStream.close();
 
         } catch (Exception e) {e.printStackTrace();}
