@@ -21,8 +21,10 @@ public class ServerCP1 {
     private static X509Certificate ServerCert;
 
 
-
     public static void main(String[] args) {
+
+        int port = 4321;
+    	if (args.length > 0) port = Integer.parseInt(args[0]);
 
         ServerSocket welcomeSocket = null;
         Socket connectionSocket = null;
@@ -34,7 +36,7 @@ public class ServerCP1 {
 
 
         try {
-            welcomeSocket = new ServerSocket(4321);
+            welcomeSocket = new ServerSocket(port);
 
             System.out.println("Server IP: " + welcomeSocket.getInetAddress().getLocalHost().getHostAddress());
             System.out.println("...Server connected, waiting for client...");
@@ -138,7 +140,7 @@ public class ServerCP1 {
 
             // done
             stringOut.println("...Server: File transfer done.");
-            System.out.println("Closing connections");
+            System.out.println("Closing connection...");
             bufferedFileOutputStream.close();
             fileOutputStream.close();
 
