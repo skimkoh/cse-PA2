@@ -89,7 +89,7 @@ public class ServerCP1 {
             System.out.println("Client: " + stringIn.readLine());
 
             // Starts file transfer
-            System.out.println("AP completes. Receiving file...");
+            System.out.println("Server authentication successful. File transfer starts.");
 
 
             // Get file size from client

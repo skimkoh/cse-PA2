@@ -1,16 +1,15 @@
 import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
 import java.io.*;
-import java.net.ServerSocket;
 import java.net.Socket;
 import java.security.PublicKey;
 import java.security.SecureRandom;
-import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
 import java.util.Arrays;
 
-public class ClientCP1 {
+public class ClientCP2 {
 
     private static byte[] encryptedNonce = new byte[256];
     private static final String CACertFile = "CA.crt";
@@ -19,30 +18,24 @@ public class ClientCP1 {
     public static void main(String[] args) {
 
         String filename = "rr.txt";
-    	if (args.length > 0) filename = args[0];
+        if (args.length > 0) filename = args[0];
 
-    	String serverAddress = "localhost";
-    	if (args.length > 1) serverAddress = args[1];
-
-        int numBytes = 0;
+        String serverAddress = "localhost";
+        if (args.length > 1) serverAddress = args[1];
 
         Socket clientSocket = null;
 
         DataOutputStream toServer = null;
         DataInputStream fromServer = null;
-
         FileInputStream fileInputStream = null;
-        BufferedInputStream bufferedFileInputStream = null;
 
         long timeStarted = 0;
 
         try {
 
             System.out.println("...Connecting to server...");
-
             clientSocket = new Socket(serverAddress, 4321);
 
-            // data channels
             toServer = new DataOutputStream(clientSocket.getOutputStream());
             fromServer = new DataInputStream(clientSocket.getInputStream());
 
@@ -66,35 +59,26 @@ public class ClientCP1 {
             fromServer.read(encryptedNonce);
             System.out.println("Received encrypted nonce from server");
 
-            // get public key from CA
-            InputStream in = new FileInputStream(CACertFile);
+            // Send certificate request to server
+            System.out.println("Requesting certificate from server");
+            stringOut.println("Request certificate");
+
             CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-            X509Certificate CACert = (X509Certificate) certificateFactory.generateCertificate(in);
-            PublicKey CAPublicKey = CACert.getPublicKey();
-
-
-            // ask for cert, gets signed cert. 
-            System.out.println("Requesting for signed certificate from server");
-            stringOut.println("...Client: Give me your certificate signed by CA");
 
             ServerCert = (X509Certificate) certificateFactory.generateCertificate(fromServer);
 
             System.out.println("Certificate received");
-
-
-            // validate cert with CA public key
             ServerCert.checkValidity();
-            ServerCert.verify(CAPublicKey);
-            System.out.println("Certificate verified.");
+            System.out.println("Certificate validated");
 
             // Get public key
             PublicKey serverPublicKey = ServerCert.getPublicKey();
 
-            // create cipher object
+
+            // Decrypt encrypted nonce
             Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
             cipher.init(Cipher.DECRYPT_MODE, serverPublicKey);
 
-            // decrypt nonce
             byte[] decryptedNonce = cipher.doFinal(encryptedNonce);
 
             if(Arrays.equals(nonce,decryptedNonce )){
@@ -109,68 +93,64 @@ public class ClientCP1 {
                 clientSocket.close();
             }
 
-
             System.out.println("Server authentication successful. File transfer starts.");
 
-            // Open the file
-            fileInputStream = new FileInputStream(filename);
-            bufferedFileInputStream = new BufferedInputStream(fileInputStream);
+            // init the cipher
+            SecretKey sessionKey = KeyGenerator.getInstance("AES").generateKey();
+            Cipher sessionCipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+            sessionCipher.init(Cipher.ENCRYPT_MODE, sessionKey);
+
+            // encrypt the session key
+            Cipher f = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+            f.init(Cipher.ENCRYPT_MODE,serverPublicKey);
+            byte[] encryptedSessionKey = f.doFinal(sessionKey.getEncoded());
+
+            BufferedOutputStream outputStream = new BufferedOutputStream(toServer);
 
             timeStarted = System.nanoTime();
-
-            // file size
-            int fileSize = fileInputStream.available();
-            toServer.writeInt(fileSize);
-            toServer.flush();
-
-            System.out.println("Sending file name");
-            // Send the filename
             toServer.writeInt(0);
-            toServer.writeInt(filename.getBytes().length);
-            toServer.write(filename.getBytes());
+            toServer.writeInt(encryptedSessionKey.length);
             toServer.flush();
 
+            outputStream.write(encryptedSessionKey, 0, encryptedSessionKey.length);
+            outputStream.flush();
 
-            byte [] fromFileBuffer = new byte[117];
+            System.out.println("Sent encrypted session key");
 
-            int count = 0;
-
-            // Send the encrypted file
-            System.out.println("Sending file");
-            for (boolean fileEnded = false; !fileEnded;) {
-
-                numBytes = bufferedFileInputStream.read(fromFileBuffer);
-
-                // encrypt
-                Cipher encipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-                encipher.init(Cipher.ENCRYPT_MODE,serverPublicKey);
-                byte[] encryptedfromFileBuffer = encipher.doFinal(fromFileBuffer);
-                count++;
-                fileEnded = numBytes < fromFileBuffer.length;
-                int encryptedNumBytes = encryptedfromFileBuffer.length;
-
-                toServer.writeInt(1);
-                toServer.writeInt(encryptedNumBytes);
-                toServer.writeInt(numBytes);
-                toServer.write(encryptedfromFileBuffer);
-                toServer.flush();
-            }
-
-            System.out.println(stringIn.readLine());
-            System.out.println("Closing connections...");
-            bufferedFileInputStream.close();
+            // open file
+            File file = new File(filename);
+            fileInputStream = new FileInputStream(file);
+            byte[] fileByteArray = new byte[(int)file.length()];
+            fileInputStream.read(fileByteArray, 0, fileByteArray.length);
             fileInputStream.close();
 
+            // send the file name as encrypted byte array
+            toServer.writeInt(1);
+            toServer.writeInt(filename.getBytes().length);
+            toServer.flush();
 
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+            outputStream.write(filename.getBytes());
+            outputStream.flush();
+
+            // encrypt the file with the session key
+            byte[] encryptedFile = sessionCipher.doFinal(fileByteArray);
+
+            // send file
+            toServer.writeInt(2);
+            System.out.println("Writing length: " + encryptedFile.length);
+            toServer.writeInt(encryptedFile.length);
+            toServer.flush();
+
+            toServer.write(encryptedFile, 0, encryptedFile.length);
+            toServer.flush();
+
+            //done
+            System.out.println("Closing connections...");
+            fileInputStream.close();
+
+        } catch (Exception e) {e.printStackTrace();}
 
         long timeTaken = System.nanoTime() - timeStarted;
-        double ms = timeTaken/1000000.0;
-        System.out.println("File transfer took: " + ms + "ms");
+        System.out.println("Program took: " + timeTaken/1000000.0 + "ms to run");
     }
-
-
 }
-
