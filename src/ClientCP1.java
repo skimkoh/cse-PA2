@@ -48,7 +48,7 @@ public class ClientCP1 {
             PrintWriter stringOut = new PrintWriter(clientSocket.getOutputStream(), true);
 
             stringOut.println("...Client: Hello SecStore, please prove your identity");
-            System.out.println("Please prove your identity");
+            System.out.println("Requesting for server identity");
 
             // generate nonce
             SecureRandom secureRandom = new SecureRandom();
@@ -70,8 +70,8 @@ public class ClientCP1 {
             PublicKey CAPublicKey = CACert.getPublicKey();
 
 
-            // ask for cert, gets signed cert
-            System.out.println("Give me your certificate signed by CA");
+            // ask for cert, gets signed cert. 
+            System.out.println("Requesting for signed certificate from server");
             stringOut.println("...Client: Give me your certificate signed by CA");
 
             ServerCert = (X509Certificate) certificateFactory.generateCertificate(fromServer);
