@@ -18,9 +18,14 @@ public class ClientCP1 {
 
     public static void main(String[] args) {
 
-        String filename = args[0];
+        String filename = "rr.txt";
+    	if (args.length > 0) filename = args[0];
 
-        String serverAddress = args[1];
+    	String serverAddress = "localhost";
+    	if (args.length > 1) serverAddress = args[1];
+
+        int port = 4321;
+    	if (args.length > 2) port = Integer.parseInt(args[2]);
 
         int numBytes = 0;
 
@@ -36,8 +41,10 @@ public class ClientCP1 {
 
         try {
 
-            System.out.println("...Connecting to server...");
-            clientSocket = new Socket(serverAddress, 4321);
+            System.out.println("Establishing connection to server...");
+
+            // Connect to server and get the input and output streams
+            clientSocket = new Socket(serverAddress, port);
 
             // data channels
             toServer = new DataOutputStream(clientSocket.getOutputStream());
@@ -107,7 +114,7 @@ public class ClientCP1 {
             }
 
 
-            System.out.println("...Server authenticated. File transfer starting now...");
+            System.out.println("Server authentication successful.");
 
             // Open the file
             fileInputStream = new FileInputStream(filename);
@@ -120,6 +127,7 @@ public class ClientCP1 {
             toServer.writeInt(fileSize);
             toServer.flush();
 
+            System.out.println("Sending file name...");
             // Send the filename
             toServer.writeInt(0);
             toServer.writeInt(filename.getBytes().length);
@@ -132,6 +140,7 @@ public class ClientCP1 {
             int count = 0;
 
             // Send the encrypted file
+            System.out.println("Sending file...");
             for (boolean fileEnded = false; !fileEnded;) {
 
                 numBytes = bufferedFileInputStream.read(fromFileBuffer);
