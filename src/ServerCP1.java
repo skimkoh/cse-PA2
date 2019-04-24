@@ -94,7 +94,6 @@ public class ServerCP1 {
 
             // Get file size from client
             int fileSize = fromClient.readInt();
-            System.out.println(fileSize);
             int size = 0;
 
             int count = 0;

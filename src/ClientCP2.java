@@ -138,7 +138,6 @@ public class ClientCP2 {
 
             // send file
             toServer.writeInt(2);
-            System.out.println("Writing length: " + encryptedFile.length);
             toServer.writeInt(encryptedFile.length);
             toServer.flush();
 
